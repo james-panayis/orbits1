@@ -10,6 +10,8 @@ For demo please see: https://jamespanayis.com/orbits1
 
 ## Build instructions
 
+The C++ is compiled to WebAssembly and requires a working **emscripten** install  
+
 run:
 
 	make

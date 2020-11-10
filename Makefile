@@ -25,7 +25,7 @@ clean:
 	rm -rf build
 
 # copy the web files to the web server path and generate gzip and brotli compressed versions
-install:
+install-web:
 	mkdir -p ${WEBPATH}
 	cp build/${NAME}.html ${WEBPATH}/index.html 
 	cp build/$(NAME).js build/$(NAME).wasm $(WEBPATH)/

@@ -46,7 +46,7 @@ namespace james {
 			boxno_ = 0;
 			for (auto& p : ps) {
 				//addbox(p.position.x - 10 * p.radius / viewMatrix_[0], p.position.y - 10 * p.radius / viewMatrix_[0], 20 * p.radius / viewMatrix_[0], 20 * p.radius / viewMatrix_[0], 1.0/12.7, 1.0/13, 1.0/12.8, 1.0/13);
-				addbox(p.position.x - p.radius, p.position.y - p.radius, 2 * p.radius, 2 * p.radius, 1.0/12.7, 1.0/13, 1.0/12.8, 1.0/13);
+				addbox(p.position.x - p.radius, p.position.y - p.radius, p.position.z, 2 * p.radius, 2 * p.radius, 1.0/12.7, 1.0/13, 1.0/12.8, 1.0/13);
 			}
 			bind();
 		}
@@ -59,7 +59,7 @@ namespace james {
 			glBufferData(GL_ARRAY_BUFFER, v.size() * sizeof(float), v.data(), GL_STATIC_DRAW);
 		}
 
-		void addbox(float x1, float y1, float x2, float y2, float X1, float Y1, float X2, float Y2) {
+		void addbox(float x1, float y1, float z1, float x2, float y2, float X1, float Y1, float X2, float Y2) {
 
 			boxno_ += 6;
 
@@ -69,7 +69,7 @@ namespace james {
 
 			v.push_back(x1);
 			v.push_back(y1);
-			v.push_back(0.0);
+			v.push_back(z1);
 			v.push_back(1.0);
 
 			v.push_back(X1);
@@ -78,7 +78,7 @@ namespace james {
 
 			v.push_back(x1 + x2);
 			v.push_back(y1);
-			v.push_back(0.0);
+			v.push_back(z1);
 			v.push_back(1.0);
 
 			v.push_back(X1 + X2);
@@ -87,7 +87,7 @@ namespace james {
 
 			v.push_back(x1);
 			v.push_back(y1 + y2);
-			v.push_back(0.0);
+			v.push_back(z1);
 			v.push_back(1.0);
 
 			v.push_back(X1);
@@ -96,7 +96,7 @@ namespace james {
 
 			v.push_back(x1 + x2);
 			v.push_back(y1);
-			v.push_back(0.0);
+			v.push_back(z1);
 			v.push_back(1.0);
 
 			v.push_back(X1 + X2);
@@ -105,7 +105,7 @@ namespace james {
 
 			v.push_back(x1);
 			v.push_back(y1 + y2);
-			v.push_back(0.0);
+			v.push_back(z1);
 			v.push_back(1.0);
 
 			v.push_back(X1);
@@ -114,7 +114,7 @@ namespace james {
 
 			v.push_back(x1 + x2);
 			v.push_back(y1 + y2);
-			v.push_back(0.0);
+			v.push_back(z1);
 			v.push_back(1.0);
 
 			v.push_back(X1 + X2);

@@ -12,6 +12,8 @@
 #include "vec3.hpp"
 
 extern float projectionMatrix_[16];
+extern int pixel_width_;
+extern int pixel_height_;
 
 namespace james {
 
@@ -80,6 +82,19 @@ namespace james {
 			for (auto& p : points_) {
 				p.velocity = p.velocity - vadjustment;
 			}
+		}
+
+		vec3 get_position_offset()
+		{
+			vec3 tposition;
+			double tmass;
+			for (const auto& p : points_) {
+				tmass += p.mass;
+				tposition = tposition + (p.position * p.mass);
+			}
+			vec3 padjustment = tposition / tmass;
+
+			return padjustment;
 		}
 
 		void print_net_momentum()

@@ -227,7 +227,7 @@ EM_BOOL key_callback(int event_type, const EmscriptenKeyboardEvent *e, void *use
 
 void generate_frame()
 {
-	glClear(GL_COLOR_BUFFER_BIT);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
   //if (fcount++ >= 50) return;
 
@@ -252,15 +252,18 @@ void generate_frame()
   std::vector<james::points::point> data;
   for (auto& x : out) data.push_back(x);
   d->set_points(data);
-  d->display(0, 0);
+
+  james::vec3 offset = p.get_position_offset();
+  d->display(800000 * pixel_width_ / 2 - offset.x, 800000 * pixel_height_ / 2 - offset.y);
 
   if (iteration % 300 == 299 && iteration <= 1500) {
-    for (int i = 0; i < 9; i++) {
-      for (int j = 0; j < 7; j++) {
+    for (int i = 0; i < 7; i++) {
+      for (int j = 0; j < 5; j++) {
         p.add_point ( { {301000000.0 + 11000000.0 * i, 101000000.0 + 11000000.0 * j, 0}, {1500.0, 27.0, 100.0}, 40000000000.0 / iteration * 400.0 / 2.0, 800000 * 4.0} );
       }
     }
   p.set_zero_net_momentum();
+
   }
 
   iteration++;
@@ -320,7 +323,7 @@ int main(int argc, char *argv[])
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glEnable(GL_BLEND);
   glClearColor(1.0, 1.0, 1.0, 1.0);
-
+  glEnable (GL_DEPTH_TEST);
   // create texture space for 400x400 terrain with 4 bytes of depth for RGBA
   //std::uint8_t * data = (std::uint8_t *)malloc(pixel_width_ * pixel_height_ * 4);
   //memset(data, 100, pixel_width_ * pixel_height_ * 4);
@@ -345,16 +348,16 @@ int main(int argc, char *argv[])
 
   //p.add_point( { {800000000, 300000000, 0}, {0, 7.34767309 / 5.972 * 0.01 * 1000*-1.022/1.0, 0}, 5.972*std::pow(10.0, 24.0)*(6.67408*0.00000000001), 6371000 * factor} );
 
-  p.add_point( { {400000000, 300000000, 0}, {0, 7.34767309 / 5.972 * 0.01 * 1000*-1.022/1.0, 0}, 5.972*std::pow(10.0, 24.0)*(6.67408*0.00000000001), 6371000 * factor} );
-  p.add_point( { {784400.0*1000.0, 300000000, 0}, {0, 1000*1.022/1.0, 0}, 7.34767309*std::pow(10.0, 22.0)*(6.67408*0.00000000001), 1737.1*1000 * factor} );
+  p.add_point( { {400'000'000, 300000000, 0}, {0, 7.34767309 / 5.972 * 0.01 * 1000*-1.022/1.0, 0}, 5.972*std::pow(10.0, 24.0)*(6.67408*0.00000000001), 6371000 * factor} );
+  p.add_point( { {784400.0*1000.0, 300000000, 0}, /*{0, 1000*1.022/1.0, 100}*/{0, 0, 1000*1.022/1.0}, 7.34767309*std::pow(10.0, 22.0)*(6.67408*0.00000000001), 1737.1*1000 * factor} );
   //p.add_point( { {300000000 - 384400.0*1000.0, 250000000, 0}, {0, -1300*1.022/2.0, 0}, 7.34767309*std::pow(10.0, 22.0)*(6.67408*0.00000000001), 1 } );
   //p.add_point( { {684400.0*1000.0, 250000000, 0}, {0, 1000*1.022/2.0, 0}, 7.34767309*std::pow(10.0, 22.0)*(6.67408*0.00000000001), 1 } );
   //p.add_point( { {684400.0*1000.0, 250000000, 0}, {0, 1000*1.022/2.0, 0}, 7.34767309*std::pow(10.0, 22.0)*(6.67408*0.00000000001), 1 } );
 
   double inc = 0.05;
   
-  for (int i = 0; i < 9; i++) {
-    for (int j = 0; j < 7; j++) {
+  for (int i = 0; i < 7; i++) {
+    for (int j = 0; j < 5; j++) {
       //p.add_point ( { {151000000.0 + 31000000.0 * i, 41000000.0 + 21000000.0 * j, 0}, {1500, 27, 100}, 1, 1200000 * factor} );
       p.add_point ( { {301000000.0 + 11000000.0 * i, 101000000.0 + 11000000.0 * j, 0}, {1500.0, 27.0, 100.0}, 4000000.0/*40000000000.0*/, 800000 * factor} );
     }

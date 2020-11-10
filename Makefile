@@ -7,6 +7,9 @@ NAME=orbits1
 # the webpath for becomes the installation prefix followed by the program name
 WEBPATH=${PREFIX}/${NAME}
 
+all: web
+web: build/$(NAME).html
+
 CC=emcc
 CFLAGS=-std=c++17 -Os
 OPTIONS=-s WASM=1 -s USE_WEBGL2=0 -s DISABLE_DEPRECATED_FIND_EVENT_TARGET_BEHAVIOR=0 -s TOTAL_MEMORY=39321600 -s FORCE_FILESYSTEM=1

@@ -3,7 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <math.h>
+#include <cmath>
 
 
 #include <emscripten/emscripten.h>
@@ -50,41 +50,77 @@ float i2{0};
 float mx{0};
 float my{0};
 
+double mouse_x{0};
+double mouse_y{0};
+
 float pattern{1};
 
 int iteration{0};
 
+unsigned int sphere_id_;
+
 james::font font_;
 
+//pass this to shaders
+//scale * windowMatrix_ * viewMatrix_
+//windowMatrix * reverse shift to origin * zoom * rotate * shift from to origin
 float projectionMatrix_[16];
-float viewMatrix_[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };
-float startMatrix_[16];
 
-void set_projection_matrix(int width, int height)
+//deals with rotations of view
+float viewMatrix_[16]   = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };
+
+james::quaternion rotation_;
+
+//deals with window (size/view)
+float windowMatrix_[16] = { 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1 };
+
+//divide all distances by this, and shift bottom-left to centre based on this
+float scale_{500000};
+
+void set_windowMatrix(int width, int height)
 {
-  projectionMatrix_[0] = 2.0f / width;
-  projectionMatrix_[1] = 0;
-  projectionMatrix_[2] = 0;
-  projectionMatrix_[3] = 0;
+  windowMatrix_[0] = 2.0f / width;
+  windowMatrix_[1] = 0;
+  windowMatrix_[2] = 0;
+  windowMatrix_[3] = 0;
 
-  projectionMatrix_[4] = 0;
-  projectionMatrix_[5] = 2.0f / height;
-  projectionMatrix_[6] = 0;
-  projectionMatrix_[7] = 0;
+  windowMatrix_[4] = 0;
+  windowMatrix_[5] = 2.0f / height;
+  windowMatrix_[6] = 0;
+  windowMatrix_[7] = 0;
 
-  projectionMatrix_[8] = 0;
-  projectionMatrix_[9] = 0;
-  projectionMatrix_[10] = -0.8/(float)std::max(width, height);
-  projectionMatrix_[11] = -1.0/(float)std::max(width, height);
+  windowMatrix_[8] = 0;
+  windowMatrix_[9] = 0;
+  windowMatrix_[10] = -0.8/(float)std::max(width, height);;//-0.8/(float)std::max(width, height);
+  windowMatrix_[11] = -1.0/(float)std::max(width, height);
 
-  projectionMatrix_[12] = -1;
-  projectionMatrix_[13] = -1;
-  projectionMatrix_[14] = 0.3; //0.6;  // 0.5
-  projectionMatrix_[15] = 1;
+  windowMatrix_[12] = -1;
+  windowMatrix_[13] = -1;
+  windowMatrix_[14] = 0.3;//0; //0.6;  // 0.5
+  windowMatrix_[15] = 1;
+}
 
-	for (int i = 0; i < 16; i++) startMatrix_[i] = projectionMatrix_[i];
+void set_projection_matrix(const james::vec3& offset)
+{
+  //shift from centre of window to origin
+  float t1[16];
+  james::matrix44_shift(t1, -pixel_width_ / 2, -pixel_height_ / 2, 0);
 
-	james::matrix44_mult(projectionMatrix_, startMatrix_, viewMatrix_);
+  //scale
+  float t2[16];
+  james::matrix44_divide(t2, t1, scale_);
+
+  //rotate
+  float t3[16];
+  matrix44_from_quaternion(t3, rotation_);
+  james::matrix44_mult(t1, t3, t2);
+
+  //shift from origin to centre of window
+  james::matrix44_shift(t2, pixel_width_ / 2, pixel_height_ / 2, 0);
+  james::matrix44_mult(t2, t1);
+
+  //window
+  james::matrix44_mult(projectionMatrix_, windowMatrix_, t2);
 }
 
 
@@ -125,9 +161,7 @@ EM_BOOL window_size_changed(int event_type, const EmscriptenUiEvent *uiEvent, vo
     emscripten_set_canvas_element_size("canvas", pixel_width_, pixel_height_);
 
     glViewport(0, 0, pixel_width_, pixel_height_);
-    set_projection_matrix(pixel_width_, pixel_height_);
-
-	 // james::matrix44_mult(projectionMatrix_, viewMatrix_, startMatrix_);
+    set_windowMatrix(pixel_width_, pixel_height_);
 
     return EM_TRUE;
   }
@@ -138,11 +172,28 @@ EM_BOOL window_size_changed(int event_type, const EmscriptenUiEvent *uiEvent, vo
 
 EM_BOOL mouse_callback(int event_type, const EmscriptenMouseEvent *e, void *user_data)
 {
-/*
+
   // for mousemove (could have multiple buttons pressed)
 
+  if (e->buttons != 0)
+  {
+    double temp_y = 8 * (static_cast<double>(e->canvasY) / std::max(viewport_width_, viewport_height_) - mouse_y);
+    double temp_x = 8 * (static_cast<double>(e->canvasX) / std::max(viewport_width_, viewport_height_) - mouse_x);
+
+    rotation_ = james::quaternion(std::cos(temp_x / 2), 0, std::sin(temp_x / 2), 0) * rotation_;
+    rotation_ = james::quaternion(std::cos(temp_y / 2), std::sin(temp_y / 2), 0, 0) * rotation_;
+
+    //printf("r: %f\n", (float)rotation_.r*rotation_.r+rotation_.x*rotation_.x+rotation_.y*rotation_.y+rotation_.z*rotation_.z); //always 1
+
+  }
+
+  mouse_x = static_cast<double>(e->canvasX) / std::max(viewport_width_, viewport_height_);
+  mouse_y = static_cast<double>(e->canvasY) / std::max(viewport_width_, viewport_height_);
+
+
+  /*
   if (e->buttons == 0) {
-    incoming(source::MOUSE, 0, state::EMPTY, e->canvasX * gl::pixel_ratio_, (gl::viewport_height_ - e->canvasY) * gl::pixel_ratio_, false);
+    incoming(source::MOUSE, 0, state::EMPTY, ,  * gl::pixel_ratio_, (gl::viewport_height_ - e->canvasY) * gl::pixel_ratio_, false);
   } else {
     if (e->buttons & 1) incoming(source::BUTTON, 0, state::DOWN, e->canvasX * gl::pixel_ratio_, (gl::viewport_height_ - e->canvasY) * gl::pixel_ratio_, false);
     if (e->buttons & 2) incoming(source::BUTTON, 1, state::DOWN, e->canvasX * gl::pixel_ratio_, (gl::viewport_height_ - e->canvasY) * gl::pixel_ratio_, false);
@@ -152,6 +203,7 @@ EM_BOOL mouse_callback(int event_type, const EmscriptenMouseEvent *e, void *user
   // for others (individual button presses/releases fire off individual event callbacks)
 
   incoming(source::BUTTON, e->button, state::DOWN, e->canvasX * gl::pixel_ratio_, (gl::viewport_height_ - e->canvasY) * gl::pixel_ratio_, true);
+
 */
 
   return EM_TRUE;
@@ -166,60 +218,81 @@ EM_BOOL touch_callback(int event_type, const EmscriptenTouchEvent *e, void *user
     }
   }
 */
-  switch (event_type) {
-      case EMSCRIPTEN_EVENT_TOUCHSTART:  {
-        //r1 *= 2;
-        for (int i = 0; i < 9; i++) {
-          for (int j = 0; j < 7; j++) {
-            p.add_point ( { {301000000.0 + 11000000.0 * i, 101000000.0 + 11000000.0 * j, 0}, {1500.0, 27.0, 100.0}, 1.0, 800000 * 2.2} );
-          }
+  printf("touch_cb\n");
+
+
+  for (int i = 0; i < e->numTouches; i++)
+  {
+    const auto& t = e->touches[i];
+
+    float x = t.clientX;// * pixel_ratio_;
+    float y = t.clientY;// * pixel_ratio_);
+
+
+    if (t.isChanged == EM_TRUE)
+    {
+      switch (event_type)
+      {
+        case EMSCRIPTEN_EVENT_TOUCHSTART:
+        printf("down\n");
+        mouse_x = static_cast<double>(x) / std::max(viewport_width_, viewport_height_);
+        mouse_y = static_cast<double>(y) / std::max(viewport_width_, viewport_height_);
+        break;
+        case EMSCRIPTEN_EVENT_TOUCHEND:    printf("end\n"); break;
+        case EMSCRIPTEN_EVENT_TOUCHMOVE:
+        {
+          double temp_y = 8 * (static_cast<double>(y) / std::max(viewport_width_, viewport_height_) - mouse_y);
+          double temp_x = 8 * (static_cast<double>(x) / std::max(viewport_width_, viewport_height_) - mouse_x);
+
+          rotation_ = james::quaternion(std::cos(temp_x / 2), 0, std::sin(temp_x / 2), 0) * rotation_;
+          rotation_ = james::quaternion(std::cos(temp_y / 2), std::sin(temp_y / 2), 0, 0) * rotation_;
+
+          mouse_x = static_cast<double>(x) / std::max(viewport_width_, viewport_height_);
+          mouse_y = static_cast<double>(y) / std::max(viewport_width_, viewport_height_);
+
+          break;
         }
-        break;
+        case EMSCRIPTEN_EVENT_TOUCHCANCEL: printf("cancel\n"); break;
       }
-      case EMSCRIPTEN_EVENT_TOUCHEND:    {
-        break;
-      }
-      case EMSCRIPTEN_EVENT_TOUCHMOVE:   {
-        break;
-      }
-      case EMSCRIPTEN_EVENT_TOUCHCANCEL: {
-        break;
-      }
-      default: printf("Unknown event type: %d\n", event_type);
     }
+  }
 
   return EM_TRUE;
 }
 
 EM_BOOL wheel_callback(int event_type, const EmscriptenWheelEvent *e, void *user_data)
 {
-	if (e->deltaY < 0)
-	{
-		float mr[16];
-		james::matrix44_scale(mr, 1.02);
-		float mr2[16];
-		james::matrix44_mult(mr2, viewMatrix_, mr);
-		for (int i = 0; i < 16; i++) viewMatrix_[i] = mr2[i];
-		james::matrix44_mult(projectionMatrix_, startMatrix_, viewMatrix_);
-	} else
-	{
-		float mr[16];
-		james::matrix44_scale(mr, 0.98);
-		float mr2[16];
-		james::matrix44_mult(mr2, viewMatrix_, mr);
-		for (int i = 0; i < 16; i++) viewMatrix_[i] = mr2[i];
-		james::matrix44_mult(projectionMatrix_, startMatrix_, viewMatrix_);
-	}
+
+  if (e->deltaY < 0)
+    scale_ /= 1.04;
+  else
+    scale_ *= 1.04;
+
 	return EM_FALSE;
 }
 
 
 EM_BOOL key_callback(int event_type, const EmscriptenKeyboardEvent *e, void *user_data)
 {
-//  printf("%s key: \"%s\", code: \"%s\", location: %lu,%s%s%s%s repeat: %d, locale: \"%s\", char: \"%s\", charCode: %lu, keyCode: %lu, which: %lu\n",
-//             emscripten_event_type_to_string(event_type), e->key, e->code, e->location,
-//             e->ctrlKey ? " CTRL" : "", e->shiftKey ? " SHIFT" : "", e->altKey ? " ALT" : "", e->metaKey ? " META" : "",
-//             e->repeat, e->locale, e->charValue, e->charCode, e->keyCode, e->which);
+  printf("%s key: \"%s\", code: \"%s\", location: %lu,%s%s%s%s repeat: %d, locale: \"%s\", char: \"%s\", charCode: %lu, keyCode: %lu, which: %lu\n",
+             emscripten_event_type_to_string(event_type), e->key, e->code, e->location,
+             e->ctrlKey ? " CTRL" : "", e->shiftKey ? " SHIFT" : "", e->altKey ? " ALT" : "", e->metaKey ? " META" : "",
+             e->repeat, e->locale, e->charValue, e->charCode, e->keyCode, e->which);
+
+  switch(event_type)
+  {
+    case EMSCRIPTEN_EVENT_KEYDOWN:
+    if(*(e->key) == 'q') {
+      for (int i = 0; i < 7; i++) {
+        for (int j = 0; j < 5; j++) {
+          p.add_point ( { {301000000.0 + 21000000.0 * i, -301000000.0 + 100000000.0 * j, 0}, {500.0 + 200 * j, 27.0, 100.0}, 40000000000.0 / iteration * 400.0 / 2.0, 800000 * 4.0} );
+        }
+      }
+      p.set_zero_net_momentum();
+
+    }
+    break;
+  }
 
   return EM_TRUE;
 }
@@ -251,19 +324,30 @@ void generate_frame()
 */
   std::vector<james::points::point> data;
   for (auto& x : out) data.push_back(x);
-  d->set_points(data);
+    d->set_points(data);
 
   james::vec3 offset = p.get_position_offset();
-  d->display(800000 * pixel_width_ / 2 - offset.x, 800000 * pixel_height_ / 2 - offset.y);
+  set_projection_matrix(offset);
+  d->display(scale_ * pixel_width_ / 2 - offset.x, scale_ * pixel_height_ / 2 - offset.y, -offset.z);
 
-  if (iteration % 300 == 299 && iteration <= 1500) {
+  if (iteration % 300 == 299 && iteration <= 300) {
     for (int i = 0; i < 7; i++) {
       for (int j = 0; j < 5; j++) {
         p.add_point ( { {301000000.0 + 11000000.0 * i, 101000000.0 + 11000000.0 * j, 0}, {1500.0, 27.0, 100.0}, 40000000000.0 / iteration * 400.0 / 2.0, 800000 * 4.0} );
       }
     }
-  p.set_zero_net_momentum();
+    p.set_zero_net_momentum();
 
+  }
+
+  if (p.size() < 20)
+  {
+    for (int i = 0; i < 7; i++) {
+      for (int j = 0; j < 5; j++) {
+        p.add_point ( { {301000000.0 + 21000000.0 * i, -301000000.0 + 100000000.0 * j, 0}, {500.0 + 200 * j, 27.0, 100.0}, 40000000000.0 / iteration * 400.0 / 2.0, 800000 * 4.0} );
+      }
+    }
+    p.set_zero_net_momentum();
   }
 
   iteration++;
@@ -315,14 +399,14 @@ int main(int argc, char *argv[])
   ctx_ = emscripten_webgl_create_context(nullptr, &ctxAttrs);
   emscripten_webgl_make_context_current(ctx_);
 
-  // init james's shaders
+  // init shaders
 
-  set_projection_matrix(pixel_width_, pixel_height_);
+  set_windowMatrix(pixel_width_, pixel_height_);
   glViewport(0, 0, pixel_width_, pixel_height_);
 
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   glEnable(GL_BLEND);
-  glClearColor(1.0, 1.0, 1.0, 1.0);
+  glClearColor(0, 0, 0, 1.0);
   glEnable (GL_DEPTH_TEST);
   // create texture space for 400x400 terrain with 4 bytes of depth for RGBA
   //std::uint8_t * data = (std::uint8_t *)malloc(pixel_width_ * pixel_height_ * 4);
@@ -382,17 +466,8 @@ int main(int argc, char *argv[])
   p.set_zero_net_momentum();
 
   d = new james::draw();
-  d->load("terrain_atlas.png");
 
-	float mr[16];
-	james::matrix44_scale(mr, 1.0/800000.0);
-
-	float mr2[16];
-
-	james::matrix44_mult(mr2, viewMatrix_, mr);
-	for (int i = 0; i < 16; i++) viewMatrix_[i] = mr2[i];
-
-	james::matrix44_mult(projectionMatrix_, startMatrix_, viewMatrix_);
+  sphere_id_ = d->upload_sphere();
 
   emscripten_set_main_loop(generate_frame, 0, 0);
 }

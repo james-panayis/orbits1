@@ -65,6 +65,16 @@ namespace james {
 			return np.id;
 		}
 
+		int set_point(pointui p, int i)
+		{
+			//auto& np = points_.emplace_back({id_counter_++, p.position, p.velocity, p.mass, p.radius, {0, 0, 0} });
+			points_[i].position = p.position;
+			points_[i].velocity = p.velocity;
+			points_[i].mass = p.mass;
+			points_[i].radius = p.radius;
+			return points_[i].id;
+		}
+
 		const std::vector<point>& get_points()
 		{
 			return points_;
@@ -132,7 +142,7 @@ namespace james {
 		void iterate(double timeinc)
 		{
 			const int psize = points_.size();
-			const double cutoff = 2;
+			const double cutoff = 20;
 			const double hti = 0.5 * timeinc;
 			// calculate displacement vectors multiplied by masses between every pair of points
 			std::vector<vec3> forces;
@@ -150,9 +160,10 @@ namespace james {
 						templen = tempdisp.length();
 						if (templen < point_i.radius + point_j.radius) {
 							double tmass = point_i.mass + point_j.mass;
-							add_point( { {(point_i.position.x * point_i.mass + point_j.position.x * point_j.mass)/tmass, (point_i.position.y * point_i.mass + point_j.position.y * point_j.mass)/tmass, (point_i.position.z * point_i.mass + point_j.position.z * point_j.mass)/tmass}, {(point_i.velocity.x * point_i.mass + point_j.velocity.x * point_j.mass)/tmass, (point_i.velocity.y * point_i.mass + point_j.velocity.y * point_j.mass)/tmass, (point_i.velocity.z * point_i.mass + point_j.velocity.z * point_j.mass)/tmass}, tmass, std::pow(std::pow(point_i.radius, 3.0) + std::pow(point_j.radius, 3.0), 1.0/3.0)} );
-							points_.erase(points_.begin()+ j);
-							points_.erase(points_.begin()+ i);
+							pointui temp = pointui( { {(point_i.position.x * point_i.mass + point_j.position.x * point_j.mass)/tmass, (point_i.position.y * point_i.mass + point_j.position.y * point_j.mass)/tmass, (point_i.position.z * point_i.mass + point_j.position.z * point_j.mass)/tmass}, {(point_i.velocity.x * point_i.mass + point_j.velocity.x * point_j.mass)/tmass, (point_i.velocity.y * point_i.mass + point_j.velocity.y * point_j.mass)/tmass, (point_i.velocity.z * point_i.mass + point_j.velocity.z * point_j.mass)/tmass}, tmass, std::pow(std::pow(point_i.radius, 3.0) + std::pow(point_j.radius, 3.0), 1.0/3.0)} );
+							set_point(temp, std::min(i,j));
+							//points_.erase(points_.begin()+ j);
+							points_.erase(points_.begin()+ std::max(i, j));
 							iterations(timeinc, 1);
 							return;
 						}
@@ -189,6 +200,11 @@ namespace james {
 				p.velocity = p.velocity + forces[i];
 				i++;
 			}
+		}
+
+		int size()
+		{
+			return points_.size();
 		}
 
 
